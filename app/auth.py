@@ -8,21 +8,20 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from flask import Blueprint, current_app, g, jsonify, request
 
+from .audit import log_event
 from .db import get_db
 from .security import login_required
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
-ph = PasswordHasher()  # Argon2id with safe defaults
+ph = PasswordHasher()
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
-# Used when the username doesn't exist, so the response takes the same time
 DUMMY_HASH = ph.hash("dummy-password-for-timing")
 
 
 @bp.post("/register")
 def register():
     data = request.get_json(silent=True) or {}
-    # Whitelist: only these two fields are read. A "role" field is ignored (T7).
     username = data.get("username", "")
     password = data.get("password", "")
 
@@ -33,7 +32,7 @@ def register():
 
     db = get_db()
     try:
-        db.execute(
+        cur = db.execute(
             "INSERT INTO users (username, password_hash) VALUES (?, ?)",
             (username, ph.hash(password)),
         )
@@ -41,6 +40,7 @@ def register():
     except sqlite3.IntegrityError:
         return jsonify(error="Username already taken"), 409
 
+    log_event("register", cur.lastrowid)
     return jsonify(message="Account created"), 201
 
 
@@ -53,15 +53,23 @@ def login():
         return jsonify(error="Invalid credentials"), 401
 
     user = get_db().execute(
-        "SELECT id, password_hash FROM users WHERE username = ?", (username,)
+        "SELECT id, password_hash, is_locked FROM users WHERE username = ?",
+        (username,),
     ).fetchone()
 
     try:
         ph.verify(user["password_hash"] if user else DUMMY_HASH, password)
     except VerifyMismatchError:
+        log_event("login_failed", user["id"] if user else None)
         return jsonify(error="Invalid credentials"), 401
     if user is None:
+        log_event("login_failed")
         return jsonify(error="Invalid credentials"), 401
+
+    # Checked only after the password is verified: only the real owner learns the account is locked
+    if user["is_locked"]:
+        log_event("login_blocked_locked", user["id"])
+        return jsonify(error="Account locked, contact an administrator"), 403
 
     now = datetime.now(timezone.utc)
     token = jwt.encode(
@@ -74,6 +82,7 @@ def login():
         current_app.config["JWT_SECRET"],
         algorithm="HS256",
     )
+    log_event("login_success", user["id"])
     return jsonify(access_token=token), 200
 
 
@@ -87,4 +96,5 @@ def logout():
         (g.claims["jti"], expires),
     )
     db.commit()
+    log_event("logout", g.user["id"])
     return jsonify(message="Logged out"), 200

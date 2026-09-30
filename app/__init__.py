@@ -22,6 +22,9 @@ def create_app():
     from .users import bp as users_bp
     app.register_blueprint(users_bp)
 
+    from .admin import bp as admin_bp
+    app.register_blueprint(admin_bp)
+
     @app.get("/api/health")
     def health():
         return jsonify(status="ok")

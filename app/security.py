@@ -3,6 +3,7 @@ from functools import wraps
 import jwt
 from flask import current_app, g, jsonify, request
 
+from .audit import log_event
 from .db import get_db
 
 GENERIC_ERROR = "Invalid or expired token"
@@ -42,5 +43,16 @@ def login_required(f):
 
         g.user = user
         g.claims = claims
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def admin_required(f):
+    @wraps(f)
+    @login_required
+    def wrapper(*args, **kwargs):
+        if g.user["role"] != "admin":
+            log_event("admin_access_denied", g.user["id"])
+            return jsonify(error="Forbidden"), 403
         return f(*args, **kwargs)
     return wrapper
