@@ -6,9 +6,10 @@ from datetime import datetime, timedelta, timezone
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from .db import get_db
+from .security import login_required
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 ph = PasswordHasher()  # Argon2id with safe defaults
@@ -74,3 +75,16 @@ def login():
         algorithm="HS256",
     )
     return jsonify(access_token=token), 200
+
+
+@bp.post("/logout")
+@login_required
+def logout():
+    expires = datetime.fromtimestamp(g.claims["exp"], timezone.utc).isoformat()
+    db = get_db()
+    db.execute(
+        "INSERT OR IGNORE INTO revoked_tokens (jti, expires_at) VALUES (?, ?)",
+        (g.claims["jti"], expires),
+    )
+    db.commit()
+    return jsonify(message="Logged out"), 200

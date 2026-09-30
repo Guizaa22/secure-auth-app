@@ -27,3 +27,7 @@
 | T10 | Secrets leaked in Git | .env excluded by .gitignore |
 | T11 | Information leak via debug mode / stack traces | Debug off in production, generic error responses |
 | T12 | Admin actions go unnoticed | Audit log of security events |
+| T13 | Server header leaks software versions (Werkzeug/Python) | Remove or override the Server header (week 5) |
+
+## Accepted risks
+- /register returns "Username already taken", which reveals that a username exists. Accepted for usability; mitigated by rate limiting (week 5).

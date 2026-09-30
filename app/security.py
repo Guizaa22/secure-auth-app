@@ -1,0 +1,46 @@
+from functools import wraps
+
+import jwt
+from flask import current_app, g, jsonify, request
+
+from .db import get_db
+
+GENERIC_ERROR = "Invalid or expired token"
+
+
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        header = request.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            return jsonify(error="Authentication required"), 401
+        token = header[len("Bearer "):]
+
+        try:
+            claims = jwt.decode(
+                token,
+                current_app.config["JWT_SECRET"],
+                algorithms=["HS256"],
+                options={"require": ["exp", "iat", "sub", "jti"]},
+            )
+        except jwt.InvalidTokenError:
+            return jsonify(error=GENERIC_ERROR), 401
+
+        db = get_db()
+        revoked = db.execute(
+            "SELECT 1 FROM revoked_tokens WHERE jti = ?", (claims["jti"],)
+        ).fetchone()
+        if revoked:
+            return jsonify(error=GENERIC_ERROR), 401
+
+        user = db.execute(
+            "SELECT id, username, role, is_locked FROM users WHERE id = ?",
+            (int(claims["sub"]),),
+        ).fetchone()
+        if user is None or user["is_locked"]:
+            return jsonify(error=GENERIC_ERROR), 401
+
+        g.user = user
+        g.claims = claims
+        return f(*args, **kwargs)
+    return wrapper
