@@ -11,6 +11,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 from .audit import log_event
 from .db import get_db
 from .security import login_required
+from .limiter import limiter
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 ph = PasswordHasher()
@@ -21,6 +22,7 @@ MAX_FAILED_ATTEMPTS = 5
 
 
 @bp.post("/register")
+@limiter.limit("5 per minute")
 def register():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "")
@@ -46,6 +48,7 @@ def register():
 
 
 @bp.post("/login")
+@limiter.limit("10 per minute")
 def login():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "")

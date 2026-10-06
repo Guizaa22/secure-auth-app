@@ -2,10 +2,8 @@ import os
 
 from dotenv import load_dotenv
 from flask import Flask, jsonify
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+from .limiter import limiter
 
 
 def create_app(test_config=None):
@@ -40,10 +38,6 @@ def create_app(test_config=None):
     from .users import bp as users_bp
     for blueprint in (auth_bp, users_bp, admin_bp, notes_bp):
         app.register_blueprint(blueprint)
-
-    # Rate limits on the sensitive public endpoints
-    limiter.limit("10 per minute")(app.view_functions["auth.login"])
-    limiter.limit("5 per minute")(app.view_functions["auth.register"])
 
     @app.get("/api/health")
     def health():
