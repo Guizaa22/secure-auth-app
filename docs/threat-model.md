@@ -34,3 +34,13 @@
 - Note titles are stored unencrypted to allow listing; only content is encrypted. Users should not store secrets in titles.
 - FERNET_KEY and the Ed25519 private key are stored on the server's disk; production would use a secrets manager or HSM.
 - The public key is served by the app itself; production would distribute it through a certificate (PKI).
+
+## Week 4 — Test results
+- Automated suite: 17 pytest cases, all pass (auth, access control, notes, signatures).
+- SQL injection on login username: rejected, parameterized queries (T8 verified).
+- Forged / expired / alg:none / tampered-payload tokens: all rejected 401 (T4 verified).
+- IDOR on notes (read/update/delete/export by another user): all 404 (T6 verified).
+- Vertical privilege escalation (user on admin routes): 403 (T7 verified).
+- Mass assignment (role self-change, invalid role, injected fields): blocked 403/400, extra fields ignored (T7 verified).
+- Brute force on /login: FINDING — 15 attempts, no rate limit, no lockout; real password accepted (T1 OPEN, fix in week 5).
+- Captured via curl loop and Burp Suite Intruder; 14 login_failed events logged (detection works, T12).
