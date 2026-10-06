@@ -48,4 +48,29 @@ def create_app(test_config=None):
         from .signing import public_key_pem
         return jsonify(algorithm="Ed25519", public_key=public_key_pem())
 
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify(error="Not found"), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(e):
+        return jsonify(error="Method not allowed"), 405
+
+    @app.errorhandler(429)
+    def too_many(e):
+        return jsonify(error="Too many requests, slow down"), 429
+
+    @app.errorhandler(500)
+    def server_error(e):
+        return jsonify(error="Internal server error"), 500
+
+    @app.after_request
+    def set_security_headers(response):
+        response.headers["Server"] = "api"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
     return app

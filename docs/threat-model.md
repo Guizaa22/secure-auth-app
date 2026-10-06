@@ -44,3 +44,8 @@
 - Mass assignment (role self-change, invalid role, injected fields): blocked 403/400, extra fields ignored (T7 verified).
 - Brute force on /login: FINDING — 15 attempts, no rate limit, no lockout; real password accepted (T1 OPEN, fix in week 5).
 - Captured via curl loop and Burp Suite Intruder; 14 login_failed events logged (detection works, T12).
+
+## Week 5 — Remediation
+- T1 FIXED: account lockout after 5 failed logins + IP rate limiting (10/min login, 5/min register). Re-tested brute force: real password now returns 403; spread attack hits 429.
+- T11 FIXED: debug off, generic JSON error handlers for 404/405/429/500, no stack traces.
+- T13 FIXED: Server header overridden to "api"; added X-Content-Type-Options, X-Frame-Options, Cache-Control, Referrer-Policy.
