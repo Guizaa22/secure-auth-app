@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 
 
-def create_app():
+def create_app(test_config=None):
     load_dotenv()
     app = Flask(__name__)
     root = os.path.abspath(os.path.join(app.root_path, os.pardir))
@@ -19,7 +19,14 @@ def create_app():
         if not os.path.isfile(path):
             raise RuntimeError(f"Missing signing key file: {path}")
 
-    from .db import close_db
+    if test_config:
+        app.config.update(test_config)
+
+    from .db import close_db, init_db
+    if app.config.get("INIT_DB"):
+        with app.app_context():
+            init_db()
+
     app.teardown_appcontext(close_db)
 
     from .admin import bp as admin_bp
