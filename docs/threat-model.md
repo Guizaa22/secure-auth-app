@@ -50,3 +50,4 @@
 - T11 FIXED: debug off, generic JSON error handlers for 404/405/429/500, no stack traces.
 - T13 FIXED: Server header overridden to "api"; added X-Content-Type-Options, X-Frame-Options, Cache-Control, Referrer-Policy.
 - Note: under the Flask dev server the Werkzeug Server header still appears before the override; under gunicorn (production config, debug off) only "Server: api" remains. Demonstrated in week 6.
+- Note: under the Flask dev server the Werkzeug Server header still appears before the override; under gunicorn (production config, debug off) only "Server: api" remains. Demonstrated in week 6.
