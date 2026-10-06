@@ -23,6 +23,7 @@ def app():
         "SIGNING_PUBKEY_PATH": os.path.join(keys, "signing_pub.pem"),
         "INIT_DB": True,
         "TESTING": True,
+        "RATELIMIT_ENABLED": False,
     })
 
     with app.app_context():

@@ -17,6 +17,7 @@ ph = PasswordHasher()
 
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
 DUMMY_HASH = ph.hash("dummy-password-for-timing")
+MAX_FAILED_ATTEMPTS = 5
 
 
 @bp.post("/register")
@@ -52,24 +53,45 @@ def login():
     if not isinstance(username, str) or not isinstance(password, str):
         return jsonify(error="Invalid credentials"), 401
 
-    user = get_db().execute(
-        "SELECT id, password_hash, is_locked FROM users WHERE username = ?",
+    db = get_db()
+    user = db.execute(
+        "SELECT id, password_hash, is_locked, failed_attempts FROM users WHERE username = ?",
         (username,),
     ).fetchone()
 
     try:
         ph.verify(user["password_hash"] if user else DUMMY_HASH, password)
     except VerifyMismatchError:
-        log_event("login_failed", user["id"] if user else None)
+        if user is not None:
+            attempts = user["failed_attempts"] + 1
+            if attempts >= MAX_FAILED_ATTEMPTS:
+                db.execute(
+                    "UPDATE users SET failed_attempts = ?, is_locked = 1 WHERE id = ?",
+                    (attempts, user["id"]),
+                )
+                log_event("account_locked_bruteforce", user["id"])
+            else:
+                db.execute(
+                    "UPDATE users SET failed_attempts = ? WHERE id = ?",
+                    (attempts, user["id"]),
+                )
+            db.commit()
+            log_event("login_failed", user["id"])
+        else:
+            log_event("login_failed")
         return jsonify(error="Invalid credentials"), 401
+
     if user is None:
         log_event("login_failed")
         return jsonify(error="Invalid credentials"), 401
 
-    # Checked only after the password is verified: only the real owner learns the account is locked
     if user["is_locked"]:
         log_event("login_blocked_locked", user["id"])
         return jsonify(error="Account locked, contact an administrator"), 403
+
+    # Successful login: clear the failed-attempt counter
+    db.execute("UPDATE users SET failed_attempts = 0 WHERE id = ?", (user["id"],))
+    db.commit()
 
     now = datetime.now(timezone.utc)
     token = jwt.encode(
