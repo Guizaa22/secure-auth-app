@@ -31,3 +31,6 @@
 
 ## Accepted risks
 - /register returns "Username already taken", which reveals that a username exists. Accepted for usability; mitigated by rate limiting (week 5).
+- Note titles are stored unencrypted to allow listing; only content is encrypted. Users should not store secrets in titles.
+- FERNET_KEY and the Ed25519 private key are stored on the server's disk; production would use a secrets manager or HSM.
+- The public key is served by the app itself; production would distribute it through a certificate (PKI).

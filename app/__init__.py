@@ -1,32 +1,41 @@
 import os
-from flask import Flask, jsonify
+
 from dotenv import load_dotenv
+from flask import Flask, jsonify
 
 
 def create_app():
     load_dotenv()
     app = Flask(__name__)
+    root = os.path.abspath(os.path.join(app.root_path, os.pardir))
 
-    # Fails immediately if the secret is missing: never run with a default key
+    # Fail closed: refuse to start without secrets
     app.config["JWT_SECRET"] = os.environ["JWT_SECRET"]
-    app.config["DATABASE"] = os.path.abspath(
-        os.path.join(app.root_path, os.pardir, "app.db")
-    )
+    app.config["FERNET_KEY"] = os.environ["FERNET_KEY"]
+    app.config["DATABASE"] = os.path.join(root, "app.db")
+    app.config["SIGNING_KEY_PATH"] = os.path.join(root, "keys", "signing_key.pem")
+    app.config["SIGNING_PUBKEY_PATH"] = os.path.join(root, "keys", "signing_pub.pem")
+    for path in (app.config["SIGNING_KEY_PATH"], app.config["SIGNING_PUBKEY_PATH"]):
+        if not os.path.isfile(path):
+            raise RuntimeError(f"Missing signing key file: {path}")
 
     from .db import close_db
     app.teardown_appcontext(close_db)
 
-    from .auth import bp as auth_bp
-    app.register_blueprint(auth_bp)
-
-    from .users import bp as users_bp
-    app.register_blueprint(users_bp)
-
     from .admin import bp as admin_bp
-    app.register_blueprint(admin_bp)
+    from .auth import bp as auth_bp
+    from .notes import bp as notes_bp
+    from .users import bp as users_bp
+    for blueprint in (auth_bp, users_bp, admin_bp, notes_bp):
+        app.register_blueprint(blueprint)
 
     @app.get("/api/health")
     def health():
         return jsonify(status="ok")
+
+    @app.get("/api/public-key")
+    def public_key():
+        from .signing import public_key_pem
+        return jsonify(algorithm="Ed25519", public_key=public_key_pem())
 
     return app
