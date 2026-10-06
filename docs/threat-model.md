@@ -49,3 +49,4 @@
 - T1 FIXED: account lockout after 5 failed logins + IP rate limiting (10/min login, 5/min register). Re-tested brute force: real password now returns 403; spread attack hits 429.
 - T11 FIXED: debug off, generic JSON error handlers for 404/405/429/500, no stack traces.
 - T13 FIXED: Server header overridden to "api"; added X-Content-Type-Options, X-Frame-Options, Cache-Control, Referrer-Policy.
+- Note: under the Flask dev server the Werkzeug Server header still appears before the override; under gunicorn (production config, debug off) only "Server: api" remains. Demonstrated in week 6.
