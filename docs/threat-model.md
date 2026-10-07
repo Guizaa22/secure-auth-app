@@ -51,3 +51,6 @@
 - T13 FIXED: Server header overridden to "api"; added X-Content-Type-Options, X-Frame-Options, Cache-Control, Referrer-Policy.
 - Note: under the Flask dev server the Werkzeug Server header still appears before the override; under gunicorn (production config, debug off) only "Server: api" remains. Demonstrated in week 6.
 - Note: under the Flask dev server the Werkzeug Server header still appears before the override; under gunicorn (production config, debug off) only "Server: api" remains. Demonstrated in week 6.
+
+## T13 — final note on the Server header
+The Server header cannot be reliably removed from inside the application: both the Werkzeug dev server and gunicorn 26 write it at the socket layer, after Flask's after_request and after WSGI middleware run. A ServerHeaderMiddleware is included as the application-level control (effective on servers that let middleware set the header), but the authoritative fix in production is a reverse proxy (nginx) that strips or rewrites the header. Severity is low: the header reveals software name/version only. Classified as a documented residual risk with a defined production mitigation.

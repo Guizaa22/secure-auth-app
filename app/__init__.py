@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify
 
 from .limiter import limiter
+from .middleware import ServerHeaderMiddleware
 
 
 def create_app(test_config=None):
@@ -66,11 +67,11 @@ def create_app(test_config=None):
 
     @app.after_request
     def set_security_headers(response):
-        response.headers["Server"] = "api"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Cache-Control"] = "no-store"
         response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
+    app.wsgi_app = ServerHeaderMiddleware(app.wsgi_app)
     return app
