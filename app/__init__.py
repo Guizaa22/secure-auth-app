@@ -5,6 +5,7 @@ from flask import Flask, jsonify
 
 from .limiter import limiter
 from .middleware import ServerHeaderMiddleware
+from .secrets import get_secret
 
 
 def create_app(test_config=None):
@@ -12,8 +13,8 @@ def create_app(test_config=None):
     app = Flask(__name__)
     root = os.path.abspath(os.path.join(app.root_path, os.pardir))
 
-    app.config["JWT_SECRET"] = os.environ["JWT_SECRET"]
-    app.config["FERNET_KEY"] = os.environ["FERNET_KEY"]
+    app.config["JWT_SECRET"] = get_secret("jwt_secret", "JWT_SECRET")
+    app.config["FERNET_KEY"] = get_secret("fernet_key", "FERNET_KEY")
     app.config["DATABASE"] = os.environ.get("DATABASE", os.path.join(root, "app.db"))
     app.config["SIGNING_KEY_PATH"] = os.environ.get("SIGNING_KEY_PATH", os.path.join(root, "keys", "signing_key.pem"))
     app.config["SIGNING_PUBKEY_PATH"] = os.environ.get("SIGNING_PUBKEY_PATH", os.path.join(root, "keys", "signing_pub.pem"))
@@ -24,6 +25,10 @@ def create_app(test_config=None):
 
     if test_config:
         app.config.update(test_config)
+
+    for _sk in ("JWT_SECRET", "FERNET_KEY"):
+        if not app.config.get(_sk):
+            raise RuntimeError(f"Missing required secret: {_sk}")
 
     from .db import close_db, init_db
     if app.config.get("INIT_DB"):
