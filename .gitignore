@@ -6,3 +6,4 @@ keys/signing_key.pem
 .coverage
 data/
 setup-devsecops.sh
+docker/nginx/certs/

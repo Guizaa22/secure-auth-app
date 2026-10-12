@@ -83,4 +83,7 @@ def create_app(test_config=None):
         return response
 
     app.wsgi_app = ServerHeaderMiddleware(app.wsgi_app)
+    if os.environ.get("TRUST_PROXY") == "1":
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
     return app
