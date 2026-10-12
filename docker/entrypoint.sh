@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -e
+export PYTHONPATH=/app
 
 DATA=/app/data
 export DATABASE="$DATA/app.db"
