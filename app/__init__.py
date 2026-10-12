@@ -14,9 +14,9 @@ def create_app(test_config=None):
 
     app.config["JWT_SECRET"] = os.environ["JWT_SECRET"]
     app.config["FERNET_KEY"] = os.environ["FERNET_KEY"]
-    app.config["DATABASE"] = os.path.join(root, "app.db")
-    app.config["SIGNING_KEY_PATH"] = os.path.join(root, "keys", "signing_key.pem")
-    app.config["SIGNING_PUBKEY_PATH"] = os.path.join(root, "keys", "signing_pub.pem")
+    app.config["DATABASE"] = os.environ.get("DATABASE", os.path.join(root, "app.db"))
+    app.config["SIGNING_KEY_PATH"] = os.environ.get("SIGNING_KEY_PATH", os.path.join(root, "keys", "signing_key.pem"))
+    app.config["SIGNING_PUBKEY_PATH"] = os.environ.get("SIGNING_PUBKEY_PATH", os.path.join(root, "keys", "signing_pub.pem"))
     app.config["RATELIMIT_ENABLED"] = True
     for path in (app.config["SIGNING_KEY_PATH"], app.config["SIGNING_PUBKEY_PATH"]):
         if not os.path.isfile(path):
@@ -48,6 +48,10 @@ def create_app(test_config=None):
     def public_key():
         from .signing import public_key_pem
         return jsonify(algorithm="Ed25519", public_key=public_key_pem())
+
+    @app.get("/")
+    def dashboard():
+        return app.send_static_file("index.html")
 
     @app.errorhandler(404)
     def not_found(e):
