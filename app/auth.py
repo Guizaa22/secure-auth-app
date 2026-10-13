@@ -1,4 +1,6 @@
+import hashlib
 import re
+import secrets
 import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -11,7 +13,6 @@ from flask import Blueprint, current_app, g, jsonify, request
 from .audit import log_event
 from .db import get_db
 from .security import login_required
-from .limiter import limiter
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 ph = PasswordHasher()
@@ -19,10 +20,40 @@ ph = PasswordHasher()
 USERNAME_RE = re.compile(r"^[A-Za-z0-9_]{3,32}$")
 DUMMY_HASH = ph.hash("dummy-password-for-timing")
 MAX_FAILED_ATTEMPTS = 5
+REFRESH_TTL_DAYS = 7
+
+
+def _make_access_token(user_id):
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {
+            "sub": str(user_id),
+            "jti": str(uuid.uuid4()),
+            "iat": now,
+            "exp": now + timedelta(minutes=15),
+        },
+        current_app.config["JWT_SECRET"],
+        algorithm="HS256",
+    )
+
+
+def _hash_token(raw):
+    # High-entropy random token: a fast cryptographic hash is appropriate
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _issue_refresh_token(db, user_id):
+    raw = secrets.token_urlsafe(32)
+    expires = (datetime.now(timezone.utc) + timedelta(days=REFRESH_TTL_DAYS)).isoformat()
+    db.execute(
+        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)",
+        (user_id, _hash_token(raw), expires),
+    )
+    db.commit()
+    return raw
 
 
 @bp.post("/register")
-@limiter.limit("5 per minute")
 def register():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "")
@@ -48,7 +79,6 @@ def register():
 
 
 @bp.post("/login")
-@limiter.limit("10 per minute")
 def login():
     data = request.get_json(silent=True) or {}
     username = data.get("username", "")
@@ -92,23 +122,45 @@ def login():
         log_event("login_blocked_locked", user["id"])
         return jsonify(error="Account locked, contact an administrator"), 403
 
-    # Successful login: clear the failed-attempt counter
     db.execute("UPDATE users SET failed_attempts = 0 WHERE id = ?", (user["id"],))
     db.commit()
 
-    now = datetime.now(timezone.utc)
-    token = jwt.encode(
-        {
-            "sub": str(user["id"]),
-            "jti": str(uuid.uuid4()),
-            "iat": now,
-            "exp": now + timedelta(minutes=15),
-        },
-        current_app.config["JWT_SECRET"],
-        algorithm="HS256",
-    )
+    access = _make_access_token(user["id"])
+    refresh = _issue_refresh_token(db, user["id"])
     log_event("login_success", user["id"])
-    return jsonify(access_token=token), 200
+    return jsonify(access_token=access, refresh_token=refresh), 200
+
+
+@bp.post("/refresh")
+def refresh():
+    data = request.get_json(silent=True) or {}
+    raw = data.get("refresh_token", "")
+    if not isinstance(raw, str) or not raw:
+        return jsonify(error="Invalid refresh token"), 401
+
+    db = get_db()
+    row = db.execute(
+        "SELECT id, user_id, expires_at, revoked FROM refresh_tokens WHERE token_hash = ?",
+        (_hash_token(raw),),
+    ).fetchone()
+    if row is None or row["revoked"]:
+        return jsonify(error="Invalid refresh token"), 401
+    if datetime.fromisoformat(row["expires_at"]) < datetime.now(timezone.utc):
+        return jsonify(error="Invalid refresh token"), 401
+
+    user = db.execute(
+        "SELECT id, is_locked FROM users WHERE id = ?", (row["user_id"],)
+    ).fetchone()
+    if user is None or user["is_locked"]:
+        return jsonify(error="Invalid refresh token"), 401
+
+    # Rotation: revoke the used token, issue a fresh one (detects reuse/theft)
+    db.execute("UPDATE refresh_tokens SET revoked = 1 WHERE id = ?", (row["id"],))
+    db.commit()
+    new_refresh = _issue_refresh_token(db, user["id"])
+    access = _make_access_token(user["id"])
+    log_event("token_refresh", user["id"])
+    return jsonify(access_token=access, refresh_token=new_refresh), 200
 
 
 @bp.post("/logout")
@@ -119,6 +171,11 @@ def logout():
     db.execute(
         "INSERT OR IGNORE INTO revoked_tokens (jti, expires_at) VALUES (?, ?)",
         (g.claims["jti"], expires),
+    )
+    # Also revoke the user's refresh tokens
+    db.execute(
+        "UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ? AND revoked = 0",
+        (g.user["id"],),
     )
     db.commit()
     log_event("logout", g.user["id"])
