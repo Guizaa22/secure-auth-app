@@ -13,6 +13,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 from .audit import log_event
 from .db import get_db
 from .security import login_required
+from .jwt_keys import private_key, kid
 
 bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 ph = PasswordHasher()
@@ -32,8 +33,9 @@ def _make_access_token(user_id):
             "iat": now,
             "exp": now + timedelta(minutes=15),
         },
-        current_app.config["JWT_SECRET"],
-        algorithm="HS256",
+        private_key(),
+        algorithm="ES256",
+        headers={"kid": kid()},
     )
 
 

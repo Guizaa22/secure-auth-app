@@ -5,6 +5,7 @@ from flask import current_app, g, jsonify, request
 
 from .audit import log_event
 from .db import get_db
+from .jwt_keys import public_key
 
 GENERIC_ERROR = "Invalid or expired token"
 
@@ -20,8 +21,8 @@ def login_required(f):
         try:
             claims = jwt.decode(
                 token,
-                current_app.config["JWT_SECRET"],
-                algorithms=["HS256"],
+                public_key(),
+                algorithms=["ES256"],
                 options={"require": ["exp", "iat", "sub", "jti"]},
             )
         except jwt.InvalidTokenError:

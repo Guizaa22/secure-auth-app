@@ -18,8 +18,11 @@ def create_app(test_config=None):
     app.config["DATABASE"] = os.environ.get("DATABASE", os.path.join(root, "app.db"))
     app.config["SIGNING_KEY_PATH"] = os.environ.get("SIGNING_KEY_PATH", os.path.join(root, "keys", "signing_key.pem"))
     app.config["SIGNING_PUBKEY_PATH"] = os.environ.get("SIGNING_PUBKEY_PATH", os.path.join(root, "keys", "signing_pub.pem"))
+    app.config["JWT_EC_PRIVATE_KEY_PATH"] = os.environ.get("JWT_EC_PRIVATE_KEY_PATH", os.path.join(root, "keys", "jwt_ec_key.pem"))
+    app.config["JWT_EC_PUBLIC_KEY_PATH"] = os.environ.get("JWT_EC_PUBLIC_KEY_PATH", os.path.join(root, "keys", "jwt_ec_pub.pem"))
     app.config["RATELIMIT_ENABLED"] = True
-    for path in (app.config["SIGNING_KEY_PATH"], app.config["SIGNING_PUBKEY_PATH"]):
+    for path in (app.config["SIGNING_KEY_PATH"], app.config["SIGNING_PUBKEY_PATH"],
+                 app.config["JWT_EC_PRIVATE_KEY_PATH"], app.config["JWT_EC_PUBLIC_KEY_PATH"]):
         if not os.path.isfile(path):
             raise RuntimeError(f"Missing signing key file: {path}")
 
@@ -57,6 +60,11 @@ def create_app(test_config=None):
     @app.get("/")
     def dashboard():
         return app.send_static_file("index.html")
+
+    @app.get("/.well-known/jwks.json")
+    def jwks_route():
+        from .jwt_keys import jwks
+        return jsonify(jwks())
 
     @app.errorhandler(404)
     def not_found(e):

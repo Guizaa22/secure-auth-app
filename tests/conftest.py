@@ -21,6 +21,8 @@ def app():
         "FERNET_KEY": Fernet.generate_key().decode(),
         "SIGNING_KEY_PATH": os.path.join(keys, "signing_key.pem"),
         "SIGNING_PUBKEY_PATH": os.path.join(keys, "signing_pub.pem"),
+        "JWT_EC_PRIVATE_KEY_PATH": os.path.join(keys, "jwt_ec_key.pem"),
+        "JWT_EC_PUBLIC_KEY_PATH": os.path.join(keys, "jwt_ec_pub.pem"),
         "INIT_DB": True,
         "TESTING": True,
         "RATELIMIT_ENABLED": False,
