@@ -16,6 +16,7 @@ def create_app(test_config=None):
     app.config["JWT_SECRET"] = get_secret("jwt_secret", "JWT_SECRET")
     app.config["FERNET_KEY"] = get_secret("fernet_key", "FERNET_KEY")
     app.config["DATABASE"] = os.environ.get("DATABASE", os.path.join(root, "app.db"))
+    app.config["DATABASE_URL"] = os.environ.get("DATABASE_URL")
     app.config["SIGNING_KEY_PATH"] = os.environ.get("SIGNING_KEY_PATH", os.path.join(root, "keys", "signing_key.pem"))
     app.config["SIGNING_PUBKEY_PATH"] = os.environ.get("SIGNING_PUBKEY_PATH", os.path.join(root, "keys", "signing_pub.pem"))
     app.config["JWT_EC_PRIVATE_KEY_PATH"] = os.environ.get("JWT_EC_PRIVATE_KEY_PATH", os.path.join(root, "keys", "jwt_ec_key.pem"))

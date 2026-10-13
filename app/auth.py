@@ -11,7 +11,7 @@ from argon2.exceptions import VerifyMismatchError
 from flask import Blueprint, current_app, g, jsonify, request
 
 from .audit import log_event
-from .db import get_db
+from .db import get_db, insert_returning_id, integrity_errors
 from .security import login_required
 from .jwt_keys import private_key, kid
 
@@ -68,15 +68,17 @@ def register():
 
     db = get_db()
     try:
-        cur = db.execute(
+        new_id = insert_returning_id(
+            db,
             "INSERT INTO users (username, password_hash) VALUES (?, ?)",
             (username, ph.hash(password)),
         )
         db.commit()
-    except sqlite3.IntegrityError:
+    except integrity_errors():
+        db.rollback()
         return jsonify(error="Username already taken"), 409
 
-    log_event("register", cur.lastrowid)
+    log_event("register", new_id)
     return jsonify(message="Account created"), 201
 
 
@@ -171,7 +173,7 @@ def logout():
     expires = datetime.fromtimestamp(g.claims["exp"], timezone.utc).isoformat()
     db = get_db()
     db.execute(
-        "INSERT OR IGNORE INTO revoked_tokens (jti, expires_at) VALUES (?, ?)",
+        "INSERT INTO revoked_tokens (jti, expires_at) VALUES (?, ?) ON CONFLICT DO NOTHING",
         (g.claims["jti"], expires),
     )
     # Also revoke the user's refresh tokens

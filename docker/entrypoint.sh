@@ -33,8 +33,12 @@ if [ ! -f "$JWT_EC_PRIVATE_KEY_PATH" ]; then
   chmod 600 "$JWT_EC_PRIVATE_KEY_PATH"
 fi
 
-# Database + demo users (generated once)
-if [ ! -f "$DATABASE" ]; then
+# Database + demo users
+if [ -n "$DATABASE_URL" ]; then
+  echo ">> Initializing PostgreSQL schema..."
+  python scripts/init_db.py
+  python scripts/seed.py || true
+elif [ ! -f "$DATABASE" ]; then
   echo ">> Initializing database..."
   python scripts/init_db.py
   python scripts/seed.py || true
