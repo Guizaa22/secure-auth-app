@@ -38,7 +38,7 @@ if [ -n "$DATABASE_URL" ]; then
   echo ">> Initializing PostgreSQL schema..."
   python scripts/init_db.py
   python scripts/seed.py || true
-elif [ ! -f "$DATABASE" ]; then
+else
   echo ">> Initializing database..."
   python scripts/init_db.py
   python scripts/seed.py || true
